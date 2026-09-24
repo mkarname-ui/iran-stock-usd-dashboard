@@ -30,9 +30,6 @@ h1 {font-size:2.25rem!important;font-weight:800!important}
 """,unsafe_allow_html=True)
 
 DB_PATH=Path(__file__).with_name("market_data_fundamental.db")
-st.write("APP FILE:", Path(__file__).resolve())
-st.write("DB PATH:", DB_PATH)
-st.write("FILES:", [p.name for p in Path(__file__).resolve().parent.iterdir()])
 
 def db_connect_readonly():
     return sqlite3.connect(f"file:{DB_PATH.as_posix()}?mode=ro", uri=True)
