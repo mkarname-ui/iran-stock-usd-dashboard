@@ -3,25 +3,36 @@ import pandas as pd
 import plotly.express as px
 import sqlite3
 from pathlib import Path
-import tempfile
-import os
 
 st.set_page_config(page_title="داشبورد ارزش بازار دلاری", layout="wide")
 
 st.markdown("""
 <style>
-html,body,[class*="css"],.stApp{font-family:Tahoma,Arial,sans-serif!important}
-.stApp{direction:rtl}[data-testid="stSidebar"]{direction:rtl}
-[data-testid="stSidebar"] *{text-align:right}
-.block-container{max-width:1450px;padding-top:2rem;padding-bottom:3rem}
-h1{font-size:2.25rem!important;font-weight:800!important}
-[data-testid="stMetric"]{background:white;border:1px solid #e5e7eb;border-radius:15px;padding:16px 18px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
-[data-testid="stMetricLabel"]{font-size:.92rem!important;font-weight:600!important}
-[data-testid="stMetricValue"]{font-size:1.55rem!important;font-weight:800!important;direction:ltr;text-align:right}
+html, body, [class*="css"], .stApp {font-family:Tahoma,Arial,sans-serif!important}
+.stApp {direction:rtl}
+[data-testid="stSidebar"] {direction:rtl}
+[data-testid="stSidebar"] * {text-align:right}
+.block-container {max-width:1450px;padding-top:2rem;padding-bottom:3rem}
+h1 {font-size:2.25rem!important;font-weight:800!important}
+[data-testid="stMetric"] {background:white;border:1px solid #e5e7eb;border-radius:15px;padding:16px 18px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+[data-testid="stMetricLabel"] {font-size:.92rem!important;font-weight:600!important}
+[data-testid="stMetricValue"] {font-size:1.55rem!important;font-weight:800!important;direction:ltr;text-align:right}
+/* Keep Streamlit's own navigation/header controls LTR so mobile icons don't collapse. */
+[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {direction:ltr!important}
+@media (max-width: 768px) {
+  .block-container {padding:1rem .9rem 2rem!important}
+  h1 {font-size:1.75rem!important;line-height:1.5!important}
+  [data-testid="stMetric"] {padding:12px 14px!important}
+  [data-testid="stMetricValue"] {font-size:1.35rem!important}
+  [data-testid="stPlotlyChart"] {direction:ltr!important}
+}
 </style>
 """,unsafe_allow_html=True)
 
 DB_PATH=Path(__file__).with_name("market_data.db")
+
+def db_connect_readonly():
+    return sqlite3.connect(f"file:{DB_PATH.as_posix()}?mode=ro", uri=True)
 
 def norm(x):
     if pd.isna(x): return ""
@@ -88,7 +99,7 @@ def ensure_db():
 
 @st.cache_data(show_spinner=False)
 def load_summary(db_mtime):
-    with sqlite3.connect(DB_PATH) as con:
+    with db_connect_readonly() as con:
         return pd.read_sql_query("""
         WITH x AS (
           SELECT *, ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY gregorian_date DESC) rn_last,
@@ -117,7 +128,7 @@ def load_summary(db_mtime):
 
 @st.cache_data(show_spinner=False)
 def load_symbol(symbol, db_mtime):
-    with sqlite3.connect(DB_PATH) as con:
+    with db_connect_readonly() as con:
         return pd.read_sql_query("""
         SELECT symbol AS Symbol, company_name AS Company, gregorian_date AS Date_Gregorian,
                shamsi_date AS Date_Shamsi, market_cap_rial AS MarketCap_Rial,
@@ -132,15 +143,15 @@ def db_mtime():
 
 ensure_db()
 st.title("📊 داشبورد ارزش بازار دلاری سهام")
-st.markdown("نسخه دیتابیسی — اطلاعات سهام از **SQLite** خوانده می‌شود و برای انتخاب نماد نیازی به پردازش مجدد Excelها نیست.")
+st.markdown("نسخه آنلاین فقط‌خواندنی — اطلاعات سهام مستقیماً از پایگاه داده **SQLite** خوانده می‌شود.")
 
 with st.sidebar:
     st.header("پایگاه داده")
-    with sqlite3.connect(DB_PATH) as con:
+    with db_connect_readonly() as con:
         nstocks=con.execute("SELECT COUNT(*) FROM stocks").fetchone()[0]
         nrows=con.execute("SELECT COUNT(*) FROM stock_history").fetchone()[0]
     st.success(f"{nstocks} نماد | {nrows:,} رکورد")
-    page=st.radio("بخش",["تحلیل سهم","نمای کلی بازار","مقایسه سهم‌ها","به‌روزرسانی داده‌ها"])
+    page=st.radio("بخش",["تحلیل سهم","نمای کلی بازار","مقایسه سهم‌ها"])
 
 summary=load_summary(db_mtime())
 
@@ -192,35 +203,5 @@ elif page=="مقایسه سهم‌ها":
         fig.update_xaxes(nticks=14); st.plotly_chart(fig,use_container_width=True)
         st.caption("هر خط فقط در روزهایی رسم شده که همان سهم داده معاملاتی دارد.")
 
-else:
-    st.subheader("به‌روزرسانی پایگاه داده")
-    st.info("فایل‌های جدید را اینجا وارد کنید. رکورد تکراری بر اساس «نماد + تاریخ» ساخته نمی‌شود؛ اگر همان تاریخ دوباره وارد شود، مقدار جدید جایگزین می‌شود.")
-    fx_up=st.file_uploader("فایل جدید نرخ دلار (اختیاری)",type=["xlsx","xls"],key="fx_update")
-    stock_up=st.file_uploader("فایل‌های جدید/به‌روزشده سهام",type=["xlsx","xls"],accept_multiple_files=True,key="stock_update")
-    if st.button("ثبت در پایگاه داده",type="primary"):
-        changed=False; messages=[]
-        try:
-            with sqlite3.connect(DB_PATH) as con:
-                if fx_up:
-                    f=parse_fx(fx_up)
-                    con.executemany("""INSERT OR REPLACE INTO fx_rates(gregorian_date,shamsi_date,usd_free,usd_nima)
-                                      VALUES(?,?,?,?)""",f[["gregorian_date","shamsi_date","usd_free","usd_nima"]].itertuples(index=False,name=None))
-                    messages.append(f"{len(f):,} ردیف نرخ ارز بررسی/ثبت شد."); changed=True
-                for up in stock_up or []:
-                    d=parse_stock(up)
-                    sym=d.iloc[0]["symbol"]; comp=d.iloc[0]["company_name"]
-                    con.execute("INSERT OR REPLACE INTO stocks(symbol,company_name) VALUES(?,?)",(sym,comp))
-                    con.executemany("""INSERT OR REPLACE INTO stock_history(symbol,gregorian_date,shamsi_date,market_cap_rial)
-                                      VALUES(?,?,?,?)""",d[["symbol","gregorian_date","shamsi_date","market_cap_rial"]].itertuples(index=False,name=None))
-                    messages.append(f"{sym}: {len(d):,} ردیف بررسی/ثبت شد."); changed=True
-                con.commit()
-            if changed:
-                st.cache_data.clear()
-                st.success("به‌روزرسانی انجام شد.")
-                for m in messages: st.write("• "+m)
-            else:
-                st.warning("فایلی برای به‌روزرسانی انتخاب نشده است.")
-        except Exception as e:
-            st.error(f"خطا در به‌روزرسانی: {e}")
 
-st.caption("داده‌های دلاری هنگام نمایش از اتصال ارزش بازار ریالی با نرخ ارز همان تاریخ محاسبه می‌شوند.")
+st.caption("نسخه عمومی فقط‌خواندنی است. داده‌های دلاری هنگام نمایش از اتصال ارزش بازار ریالی با نرخ ارز همان تاریخ محاسبه می‌شوند.")
