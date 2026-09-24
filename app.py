@@ -166,12 +166,24 @@ if page=="تحلیل سهم":
     c2.metric("ارزش بازار │ دلار آزاد",f'{last["MarketCap_USD_Free"]/1e6:,.1f} M$')
     c3.metric("ارزش بازار │ دلار نیمایی",f'{last["MarketCap_USD_NIMA"]/1e6:,.1f} M$')
     c4.metric("فاصله از سقف",f'{(last["MarketCap_USD_Free"]/peak-1)*100:,.1f}%')
-    p=d[["Date_Shamsi","MarketCap_USD_Free","MarketCap_USD_NIMA"]].copy()
-    p["دلار آزاد"]=p["MarketCap_USD_Free"]/1e6; p["دلار نیمایی"]=p["MarketCap_USD_NIMA"]/1e6
-    long=p.melt(id_vars="Date_Shamsi",value_vars=["دلار آزاد","دلار نیمایی"],var_name="مبنای ارز",value_name="ارزش بازار (میلیون دلار)")
-    fig=px.line(long,x="Date_Shamsi",y="ارزش بازار (میلیون دلار)",color="مبنای ارز",title=f'{sym} — {last["Company"]}')
-    fig.update_layout(height=540,hovermode="x unified",legend_title_text="",xaxis_title="تاریخ شمسی",yaxis_title="میلیون دلار")
-    fig.update_xaxes(nticks=14); st.plotly_chart(fig,use_container_width=True)
+    p=d[["Date_Gregorian","Date_Shamsi","MarketCap_USD_Free","MarketCap_USD_NIMA"]].copy()
+    p["Date_Gregorian"]=pd.to_datetime(p["Date_Gregorian"],errors="coerce")
+    p=p.dropna(subset=["Date_Gregorian"]).sort_values("Date_Gregorian")
+    p["دلار آزاد"]=p["MarketCap_USD_Free"]/1e6
+    p["دلار نیمایی"]=p["MarketCap_USD_NIMA"]/1e6
+    long=p.melt(id_vars=["Date_Gregorian","Date_Shamsi"],value_vars=["دلار آزاد","دلار نیمایی"],
+                var_name="مبنای ارز",value_name="ارزش بازار (میلیون دلار)")
+    fig=px.line(long,x="Date_Gregorian",y="ارزش بازار (میلیون دلار)",color="مبنای ارز",
+                custom_data=["Date_Shamsi"],title=f'{sym} — {last["Company"]}')
+    fig.update_traces(
+        hovertemplate="<b>%{customdata[0]}</b><br>%{y:,.1f} میلیون دلار<extra></extra>"
+    )
+    fig.update_layout(height=500,hovermode="x unified",legend_title_text="",
+                      xaxis_title="تاریخ",yaxis_title="میلیون دلار",
+                      margin=dict(l=10,r=10,t=55,b=20),
+                      legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="right",x=1))
+    fig.update_xaxes(nticks=8,tickformat="%Y")
+    st.plotly_chart(fig,use_container_width=True,config={"displayModeBar":False})
     free=d["MarketCap_USD_Free"]/1e6
     imax=d["MarketCap_USD_Free"].idxmax(); imin=d["MarketCap_USD_Free"].idxmin()
     a,b,c,e=st.columns(4)
@@ -195,10 +207,19 @@ elif page=="مقایسه سهم‌ها":
         syms=[choices[x] for x in picked]
         parts=[load_symbol(s,db_mtime()) for s in syms]
         cmp=pd.concat(parts,ignore_index=True)
+        cmp["Date_Gregorian"]=pd.to_datetime(cmp["Date_Gregorian"],errors="coerce")
+        cmp=cmp.dropna(subset=["Date_Gregorian"]).sort_values(["Symbol","Date_Gregorian"])
         cmp["ارزش بازار (میلیون دلار)"]=cmp["MarketCap_USD_Free"]/1e6
-        fig=px.line(cmp,x="Date_Shamsi",y="ارزش بازار (میلیون دلار)",color="Symbol",title="مقایسه ارزش بازار دلاری — دلار آزاد")
-        fig.update_layout(height=560,hovermode="x unified",legend_title_text="نماد",xaxis_title="تاریخ شمسی")
-        fig.update_xaxes(nticks=14); st.plotly_chart(fig,use_container_width=True)
+        fig=px.line(cmp,x="Date_Gregorian",y="ارزش بازار (میلیون دلار)",color="Symbol",
+                    custom_data=["Date_Shamsi"],title="مقایسه ارزش بازار دلاری — دلار آزاد")
+        fig.update_traces(
+            hovertemplate="<b>%{customdata[0]}</b><br>%{y:,.1f} میلیون دلار<extra>%{fullData.name}</extra>"
+        )
+        fig.update_layout(height=520,hovermode="x unified",legend_title_text="نماد",
+                          xaxis_title="تاریخ",yaxis_title="میلیون دلار",
+                          margin=dict(l=10,r=10,t=55,b=20))
+        fig.update_xaxes(nticks=8,tickformat="%Y")
+        st.plotly_chart(fig,use_container_width=True,config={"displayModeBar":False})
         st.caption("هر خط فقط در روزهایی رسم شده که همان سهم داده معاملاتی دارد.")
 
 
