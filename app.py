@@ -9,22 +9,18 @@ st.set_page_config(page_title="داشبورد ارزش بازار دلاری", l
 st.markdown("""
 <style>
 html, body, [class*="css"], .stApp {font-family:Tahoma,Arial,sans-serif!important}
-.stApp {direction:rtl}
-[data-testid="stSidebar"] {direction:rtl}
-[data-testid="stSidebar"] * {text-align:right}
-.block-container {max-width:1450px;padding-top:2rem;padding-bottom:3rem}
-h1 {font-size:2.25rem!important;font-weight:800!important}
-[data-testid="stMetric"] {background:white;border:1px solid #e5e7eb;border-radius:15px;padding:16px 18px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.block-container {max-width:1450px;padding-top:1.4rem;padding-bottom:3rem}
+h1,h2,h3,p,[data-testid="stMarkdownContainer"] {text-align:right}
+[data-testid="stWidgetLabel"] {text-align:right}
+[data-testid="stMetric"] {background:white;border:1px solid #e5e7eb;border-radius:15px;padding:16px 18px;box-shadow:0 2px 8px rgba(0,0,0,.04);direction:rtl}
 [data-testid="stMetricLabel"] {font-size:.92rem!important;font-weight:600!important}
 [data-testid="stMetricValue"] {font-size:1.55rem!important;font-weight:800!important;direction:ltr;text-align:right}
-/* Keep Streamlit's own navigation/header controls LTR so mobile icons don't collapse. */
-[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {direction:ltr!important}
-@media (max-width: 768px) {
-  .block-container {padding:1rem .9rem 2rem!important}
-  h1 {font-size:1.75rem!important;line-height:1.5!important}
+[data-testid="stHeader"],[data-testid="stToolbar"],[data-testid="stDecoration"],[data-testid="stStatusWidget"] {direction:ltr!important}
+@media (max-width:768px) {
+  .block-container {padding:.8rem .75rem 2rem!important}
+  h1 {font-size:1.65rem!important;line-height:1.55!important}
   [data-testid="stMetric"] {padding:12px 14px!important}
   [data-testid="stMetricValue"] {font-size:1.35rem!important}
-  [data-testid="stPlotlyChart"] {direction:ltr!important}
 }
 </style>
 """,unsafe_allow_html=True)
@@ -142,17 +138,19 @@ def db_mtime():
     return DB_PATH.stat().st_mtime_ns
 
 ensure_db()
-st.title("📊 داشبورد ارزش بازار دلاری سهام")
-st.markdown("نسخه آنلاین فقط‌خواندنی — اطلاعات سهام مستقیماً از پایگاه داده **SQLite** خوانده می‌شود.")
+with db_connect_readonly() as con:
+    nstocks=con.execute("SELECT COUNT(*) FROM stocks").fetchone()[0]
+    nrows=con.execute("SELECT COUNT(*) FROM stock_history").fetchone()[0]
 
-with st.sidebar:
-    st.header("پایگاه داده")
-    with db_connect_readonly() as con:
-        nstocks=con.execute("SELECT COUNT(*) FROM stocks").fetchone()[0]
-        nrows=con.execute("SELECT COUNT(*) FROM stock_history").fetchone()[0]
-    st.success(f"{nstocks} نماد | {nrows:,} رکورد")
-    page=st.radio("بخش",["تحلیل سهم","نمای کلی بازار","مقایسه سهم‌ها"])
+st.markdown("""
+<div dir="rtl" style="text-align:right">
+<h1>📊 داشبورد ارزش بازار دلاری سهام</h1>
+<p>نسخه آنلاین فقط‌خواندنی — اطلاعات سهام مستقیماً از پایگاه داده <b>SQLite</b> خوانده می‌شود.</p>
+</div>
+""",unsafe_allow_html=True)
 
+page=st.radio("بخش",["تحلیل سهم","نمای کلی بازار","مقایسه سهم‌ها"],horizontal=True)
+st.caption(f"{nstocks} نماد | {nrows:,} رکورد")
 summary=load_summary(db_mtime())
 
 if page=="تحلیل سهم":
